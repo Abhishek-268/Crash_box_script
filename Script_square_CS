@@ -1,0 +1,215 @@
+# -*- coding: mbcs -*-
+from part import *
+from material import *
+from section import *
+from assembly import *
+from step import *
+from interaction import *
+from load import *
+from mesh import *
+from optimization import *
+from job import *
+from sketch import *
+from visualization import *
+from connectorBehavior import *
+
+t = [1.0,1.2,1.4,1.6,1.8]
+mesh_size = [8.0,4.0,2.0,1.0]
+for i in range(len(t)):
+    for j in range(len(mesh_size)):
+        thickness_value = t[i]
+        mesh = mesh_size[j]
+        print >> sys.__stdout__, " "
+        print >> sys.__stdout__, "Current Case : " + "\nThickness: " + str(thickness_value) + "\nMesh size: " + str(mesh)
+        # Part
+        # Create Sqaure Column
+        mdb.models['Model-1'].ConstrainedSketch(name='__profile__', sheetSize=2000.0)
+        mdb.models['Model-1'].sketches['__profile__'].rectangle(point1=(14.0, 14.0),
+                                                                point2=(-14.0, -14.0))
+        mdb.models['Model-1'].Part(dimensionality=THREE_D, name='Square Column', type=
+        DEFORMABLE_BODY)
+        mdb.models['Model-1'].parts['Square Column'].BaseShellExtrude(depth=150.0, sketch=
+        mdb.models['Model-1'].sketches['__profile__'])
+        del mdb.models['Model-1'].sketches['__profile__']
+
+        # Create Impactor
+        mdb.models['Model-1'].ConstrainedSketch(name='__profile__', sheetSize=2000.0)
+        mdb.models['Model-1'].sketches['__profile__'].rectangle(point1=(0.0, -40.0),
+                                                                point2=(-25.0, 40.0))
+        mdb.models['Model-1'].sketches['__profile__'].ObliqueDimension(textPoint=(
+            -15.4343185424805, 69.5835266113281), value=25.0, vertex1=
+        mdb.models['Model-1'].sketches['__profile__'].vertices[1], vertex2=
+        mdb.models['Model-1'].sketches['__profile__'].vertices[2])
+        mdb.models['Model-1'].sketches['__profile__'].ObliqueDimension(textPoint=(
+            -86.7502822875977, 16.0205039978027), value=80.0, vertex1=
+        mdb.models['Model-1'].sketches['__profile__'].vertices[2], vertex2=
+        mdb.models['Model-1'].sketches['__profile__'].vertices[3])
+        mdb.models['Model-1'].Part(dimensionality=THREE_D, name='Impactor', type=
+        ANALYTIC_RIGID_SURFACE)  # ANALYTIC_RIGID_SURFACE)
+        mdb.models['Model-1'].parts['Impactor'].AnalyticRigidSurfExtrude(sketch=
+                                                                            mdb.models['Model-1'].sketches['__profile__'],
+                                                                            depth=80.0)
+        del mdb.models['Model-1'].sketches['__profile__']
+
+        # Ref Point
+        impactor = mdb.models['Model-1'].parts['Impactor']
+        impactor.ReferencePoint(point=impactor.InterestingPoint(impactor.edges[3], MIDDLE))
+        impactor.Set(name='Set-1', referencePoints=(impactor.referencePoints[2],))
+
+        # Inertia
+        impactor.engineeringFeatures.PointMassInertia(alpha=0.0, composite=0.0, mass=0.063,
+                                                        name='Impactor_Mass', region=impactor.sets['Set-1'])
+        impactor.Set(name='Impactor_RP', referencePoints=(impactor.referencePoints[2],))
+        mdb.models['Model-1'].rootAssembly.regenerate()
+
+       # Property ------------------------------------------------------------------
+
+        # Create material
+
+        mdb.models['Model-1'].Material(name='Al_ AA6060_T4')
+        mdb.models['Model-1'].materials['Al_ AA6060_T4'].Elastic(table=((68000.0, 0.3),))
+        mdb.models['Model-1'].materials['Al_ AA6060_T4'].Plastic(table=((80.0, 0.0), (
+            115.0, 0.024), (139.0, 0.049), (150.0, 0.074), (158.0, 0.099), (167.0, 0.124), (
+                                                                            171.0, 0.149), (173.0, 0.174)))
+        mdb.models['Model-1'].materials['Al_ AA6060_T4'].Density(table=((2.7e-09,),))
+
+        # Create section
+
+        mdb.models['Model-1'].HomogeneousShellSection(idealization=NO_IDEALIZATION,
+                                                        integrationRule=SIMPSON, material='Al_ AA6060_T4', name='Column',
+                                                        nodalThicknessField='', numIntPts=5, poissonDefinition=DEFAULT,
+                                                        preIntegrate=OFF, temperature=GRADIENT, thickness=t[i],
+                                                        thicknessField='',
+                                                        thicknessModulus=None, thicknessType=UNIFORM, useDensity=OFF)
+
+        # Assign section
+        # Sq Column
+        mdb.models['Model-1'].parts['Square Column'].Set(faces=
+        mdb.models['Model-1'].parts['Square Column'].faces.getSequenceFromMask((
+            '[#f ]',), ), name='Set-1')
+        mdb.models['Model-1'].parts['Square Column'].SectionAssignment(offset=0.0,
+                                                                        offsetField='', offsetType=MIDDLE_SURFACE,
+                                                                        region=
+                                                                        mdb.models['Model-1'].parts[
+                                                                            'Square Column'].sets['Set-1'], sectionName=
+                                                                        'Column', thicknessAssignment=FROM_SECTION)
+
+        # Assembly
+
+        mdb.models['Model-1'].rootAssembly.DatumCsysByDefault(CARTESIAN)
+        mdb.models['Model-1'].rootAssembly.Instance(dependent=ON, name='Impactor',
+                                                    part=mdb.models['Model-1'].parts['Impactor'])
+        mdb.models['Model-1'].rootAssembly.Instance(dependent=ON, name=
+        'Square Column-1', part=mdb.models['Model-1'].parts['Square Column'])
+
+        # Translation
+        mdb.models['Model-1'].rootAssembly.translate(instanceList=('Square Column-1',)
+                                                        , vector=(0.0, 0.0, 40.0))
+        mdb.models['Model-1'].rootAssembly.rotate(angle=270.0, axisDirection=(0.0,
+                                                                                -54.0, 0.0), axisPoint=(0.0, 14.0, 40.0),
+                                                    instanceList=('Square Column-1',
+                                                                ))
+        mdb.models['Model-1'].rootAssembly.translate(instanceList=('Square Column-1',)
+                                                        , vector=(0.0, 0.0, -40.0))
+
+        # Mesh
+        mdb.models['Model-1'].parts['Square Column'].seedPart(deviationFactor=0.1,
+                                                                minSizeFactor=0.1, size=mesh)
+        mdb.models['Model-1'].parts['Square Column'].generateMesh()
+
+        # Surfaces
+        mdb.models['Model-1'].parts['Impactor'].Surface(name='impact', side1Faces=
+        mdb.models['Model-1'].parts['Impactor'].faces.getSequenceFromMask(('[#f ]',
+                                                                            ), ))
+        mdb.models['Model-1'].rootAssembly.regenerate()
+
+        # Steps
+        mdb.models['Model-1'].ExplicitDynamicsStep(improvedDtMethod=ON, massScaling=((
+                                                                                            SEMI_AUTOMATIC, MODEL,
+                                                                                            THROUGHOUT_STEP, 0.0, 5.5e-07,
+                                                                                            BELOW_MIN, 1, 0, 0.0,
+                                                                                            0.0, 0, None),), name='Step-1',
+                                                    previous='Initial', timePeriod=0.03)
+        mdb.models['Model-1'].steps['Step-1'].setValues(improvedDtMethod=ON,
+                                                        massScaling=(
+                                                        (SEMI_AUTOMATIC, MODEL, THROUGHOUT_STEP, 0.0, 5.5e-07,
+                                                            BELOW_MIN, 1, 0, 0.0, 0.0, 0, None),), maxIncrement=3e-07)
+
+        # History_Output
+        mdb.models['Model-1'].historyOutputRequests['H-Output-1'].setValues(
+            timeInterval=0.001,variables=('ALLIE', 'ALLKE', 'ALLSE'))
+
+        # Field_Output
+        mdb.models['Model-1'].fieldOutputRequests['F-Output-1'].setValues(timeInterval=
+            0.001, variables=('U', 'RF'))
+
+        # Interactions
+        mdb.models['Model-1'].ContactProperty('friction')
+        mdb.models['Model-1'].interactionProperties['friction'].TangentialBehavior(
+            dependencies=0, directionality=ISOTROPIC, elasticSlipStiffness=None,
+            formulation=PENALTY, fraction=0.005, maximumElasticSlip=FRACTION,
+            pressureDependency=OFF, shearStressLimit=None, slipRateDependency=OFF,
+            table=((0.4,),), temperatureDependency=OFF)
+        mdb.models['Model-1'].ContactExp(createStepName='Initial', name='Contact')
+        mdb.models['Model-1'].interactions['Contact'].includedPairs.setValuesInStep(
+            stepName='Initial', useAllstar=ON)
+        mdb.models['Model-1'].interactions['Contact'].contactPropertyAssignments.appendInStep(
+            assignments=((GLOBAL, SELF, 'friction'),), stepName='Initial')
+
+        # BC
+        # Encastre
+        mdb.models['Model-1'].rootAssembly.Set(edges=
+            mdb.models['Model-1'].rootAssembly.instances['Square Column-1'].edges.getSequenceFromMask(
+            ('[#491 ]', ), ), name='edge')
+        mdb.models['Model-1'].boundaryConditions['BC-1'].setValues(region=
+            mdb.models['Model-1'].rootAssembly.sets['edge'])
+
+        #Displacement_wall
+        mdb.models['Model-1'].DisplacementBC(amplitude=UNSET, createStepName='Step-1',
+                                                distributionType=UNIFORM, fieldName='', fixed=OFF, localCsys=None, name=
+                                                'BC_wall', region=Region(referencePoints=(
+                mdb.models['Model-1'].rootAssembly.instances['Impactor'].referencePoints[2],
+            )), u1=UNSET, u2=0.0, u3=0.0, ur1=0.0, ur2=0.0, ur3=0.0)
+
+        # Velocity
+        mdb.models['Model-1'].Velocity(distributionType=MAGNITUDE, field='', name=
+        'velocity', omega=0.0, region=
+                                        mdb.models['Model-1'].rootAssembly.instances['Impactor'].sets['Impactor_RP']
+                                        , velocity1=7300)
+
+        # JOB
+        mdb.Job(activateLoadBalancing=False, atTime=None, contactPrint=OFF,
+                description='V1', echoPrint=OFF, explicitPrecision=SINGLE, historyPrint=OFF
+                , memory=90, memoryUnits=PERCENTAGE, model='Model-1', modelPrint=OFF,
+                multiprocessingMode=DEFAULT, name='Job-1', nodalOutputPrecision=SINGLE,
+                numCpus=6, numDomains=6, parallelizationMethodExplicit=DOMAIN, queue=None,
+                resultsFormat=ODB, scratch='', type=ANALYSIS, userSubroutine='', waitHours=
+                0, waitMinutes=0)
+        mdb.jobs['Job-1'].submit(consistencyChecking=OFF)
+        mdb.jobs['Job-1'].waitForCompletion()
+
+
+
+        # open results file
+        import sys
+        odb = session.openOdb(name="Job-1.odb")
+        # get the step where the results are
+        step = odb.steps["Step-1"]
+        # get the vectors that store the results
+        displacements = step.frames[1].fieldOutputs["U"]
+        reaction_force = step.frames[1].fieldOutputs["RF"]
+
+        # initialize an empty vector to store u of every node
+        u_vector = []
+        rf_vector = []
+        # loop over all nodes
+        for k in range(len(displacements.values)):
+            # get the u2 of the node and store it in u2_vector
+            u_vector.append(displacements.values[k].data[1])
+            rf_vector.append((reaction_force.values[k].data[1]))
+        print("Displacements = " + str(u_vector))
+        print >> sys.__stdout__, "Displacements = " + str(u_vector)
+        print >> sys.__stdout__, "---------------"
+        print("Reaction_Force = " + str(u_vector))
+        print >> sys.__stdout__, "Reaction_Force = " + str(rf_vector)
+        print >> sys.__stdout__, "------------------------------------------"
