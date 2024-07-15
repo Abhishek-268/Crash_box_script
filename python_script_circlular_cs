@@ -1,0 +1,218 @@
+# -*- coding: mbcs -*-
+from part import *
+from material import *
+from section import *
+from assembly import *
+from step import *
+from interaction import *
+from load import *
+from mesh import *
+from optimization import *
+from job import *
+from sketch import *
+from visualization import *
+from connectorBehavior import *
+
+# Enter the required thickness to be verified
+t = [1.0,1.2,1.4,1.6,1.8]
+# Enter the mesh sizes for verification
+mesh_size = [8.0,4.0,2.0,1.0]
+for i in range(len(t)):
+    for j in range(len(mesh_size)):
+        thickness_value = t[i]
+        mesh = mesh_size[j]
+        print >> sys.__stdout__, " "
+        print >> sys.__stdout__, "Current Case : " + "\nThickness: " + str(thickness_value) + "\nmesh size" + str(mesh)
+        # Part
+        # Circular_column
+        mdb.models['Model-1'].ConstrainedSketch(name='__profile__', sheetSize=200.0)
+        mdb.models['Model-1'].sketches['__profile__'].CircleByCenterPerimeter(center=(
+            0.0, 0.0), point1=(17.8, 0.0))
+        mdb.models['Model-1'].sketches['__profile__'].HorizontalDimension(textPoint=(
+            10.4057998657227, -25.4283332824707), value=17.8, vertex1=
+            mdb.models['Model-1'].sketches['__profile__'].vertices[0], vertex2=
+            mdb.models['Model-1'].sketches['__profile__'].vertices[1])
+        mdb.models['Model-1'].Part(dimensionality=THREE_D, name='Cir Column', type=
+            DEFORMABLE_BODY)
+        mdb.models['Model-1'].parts['Cir Column'].BaseShellExtrude(depth=150.0, sketch=
+            mdb.models['Model-1'].sketches['__profile__'])
+        del mdb.models['Model-1'].sketches['__profile__']
+
+        # Impactor
+        mdb.models['Model-1'].ConstrainedSketch(name='__profile__', sheetSize=200.0)
+        mdb.models['Model-1'].sketches['__profile__'].Line(point1=(0.0, 50.0), point2=(
+            0.0, -50.0))
+        mdb.models['Model-1'].sketches['__profile__'].VerticalConstraint(addUndoState=
+            False, entity=mdb.models['Model-1'].sketches['__profile__'].geometry[2])
+        mdb.models['Model-1'].sketches['__profile__'].ObliqueDimension(textPoint=(
+            24.3958206176758, 2.82537078857422), value=100.0, vertex1=
+            mdb.models['Model-1'].sketches['__profile__'].vertices[0], vertex2=
+            mdb.models['Model-1'].sketches['__profile__'].vertices[1])
+        mdb.models['Model-1'].Part(dimensionality=THREE_D, name='Impactor', type=
+            ANALYTIC_RIGID_SURFACE)
+        mdb.models['Model-1'].parts['Impactor'].AnalyticRigidSurfExtrude(depth=200.0, 
+            sketch=mdb.models['Model-1'].sketches['__profile__'])
+        del mdb.models['Model-1'].sketches['__profile__']
+
+        # Materials
+        mdb.models['Model-1'].Material(name='Al__AA6060_T4') # type: ignore
+        mdb.models['Model-1'].materials['Al__AA6060_T4'].Density(table=((2.71e-09, ), 
+            ))
+        mdb.models['Model-1'].materials['Al__AA6060_T4'].Elastic(table=((68000.0, 0.3), 
+            ))
+        mdb.models['Model-1'].materials['Al__AA6060_T4'].Plastic(table=((80.0, 0.0), (
+            115.0, 0.024), (139.0, 0.049), (150.0, 0.074), (158.0, 0.099), (167.0, 
+            0.124), (171.0, 0.149), (173.0, 0.174)))
+
+        # Section
+        mdb.models['Model-1'].HomogeneousShellSection(idealization=NO_IDEALIZATION, 
+            integrationRule=SIMPSON, material='Al__AA6060_T4', name='Cir Column', 
+            nodalThicknessField='', numIntPts=5, poissonDefinition=DEFAULT, 
+            preIntegrate=OFF, temperature=GRADIENT, thickness=t[i], thicknessField='', 
+            thicknessModulus=None, thicknessType=UNIFORM, useDensity=OFF)
+        mdb.models['Model-1'].parts['Cir Column'].Set(faces=
+            mdb.models['Model-1'].parts['Cir Column'].faces.getSequenceFromMask((
+            '[#1 ]', ), ), name='Set-1')
+
+        # Section_Assignment
+        mdb.models['Model-1'].parts['Cir Column'].SectionAssignment(offset=0.0, 
+            offsetField='', offsetType=MIDDLE_SURFACE, region=
+            mdb.models['Model-1'].parts['Cir Column'].sets['Set-1'], sectionName=
+            'Cir Column', thicknessAssignment=FROM_SECTION)
+
+        # Mesh
+        # cir_mesh
+        mdb.models['Model-1'].parts['Cir Column'].seedEdgeBySize(constraint=FINER, 
+            deviationFactor=0.1, edges=
+            mdb.models['Model-1'].parts['Cir Column'].edges.getSequenceFromMask((
+            '[#3 ]', ), ), size=mesh_size[j])
+        mdb.models['Model-1'].parts['Cir Column'].generateMesh()
+
+        # Ref_point
+        mdb.models['Model-1'].parts['Impactor'].ReferencePoint(point=
+            mdb.models['Model-1'].parts['Impactor'].InterestingPoint(
+            mdb.models['Model-1'].parts['Impactor'].edges[3], MIDDLE))
+        mdb.models['Model-1'].parts['Impactor'].Set(name='Set-1', referencePoints=(
+            mdb.models['Model-1'].parts['Impactor'].referencePoints[2], ))
+        mdb.models['Model-1'].parts['Impactor'].engineeringFeatures.PointMassInertia(
+            alpha=0.0, composite=0.0, mass=0.063, name='Impactor_Mass', region=
+            mdb.models['Model-1'].parts['Impactor'].sets['Set-1'])
+        mdb.models['Model-1'].parts['Impactor'].Set(name='Impactor_RP', 
+            referencePoints=(
+            mdb.models['Model-1'].parts['Impactor'].referencePoints[2], ))
+
+        # Assembly
+        mdb.models['Model-1'].rootAssembly.DatumCsysByDefault(CARTESIAN)
+        mdb.models['Model-1'].rootAssembly.Instance(dependent=ON, name='Cir Column-1', 
+            part=mdb.models['Model-1'].parts['Cir Column'])
+        mdb.models['Model-1'].rootAssembly.Instance(dependent=ON, name='Impactor-1', 
+            part=mdb.models['Model-1'].parts['Impactor'])
+        mdb.models['Model-1'].rootAssembly.rotate(angle=-90.0, axisDirection=(0.0, 
+            10.0, 0.0), axisPoint=(0.0, 0.0, 0.0), instanceList=('Impactor-1', ))
+        mdb.models['Model-1'].rootAssembly.translate(instanceList=('Impactor-1', ), 
+            vector=(0.0, 0.0, -5.0))
+
+        # Sets_fix_nodes
+        mdb.models['Model-1'].rootAssembly.regenerate()
+        mdb.models['Model-1'].rootAssembly.Set(name='Fix_Nodes', nodes=
+            mdb.models['Model-1'].rootAssembly.instances['Cir Column-1'].nodes.getSequenceFromMask(
+            mask=('[#ffffffff:3 #ffff ]', ), ))
+        mdb.models['Model-1'].rootAssembly.Set(name='Fix_Nodes', nodes=
+            mdb.models['Model-1'].rootAssembly.instances['Cir Column-1'].nodes.getSequenceFromMask(
+            mask=('[#ffffffff:3 #ffff ]', ), ))
+        mdb.models['Model-1'].rootAssembly.regenerate()
+        mdb.models['Model-1'].rootAssembly.Set(name='Fix_Nodes', nodes=
+            mdb.models['Model-1'].rootAssembly.instances['Cir Column-1'].nodes.getSequenceFromMask(
+            mask=('[#ffffffff:3 #ffff ]', ), ))
+        mdb.models['Model-1'].rootAssembly.Set(name='Fix_Nodes', nodes=
+            mdb.models['Model-1'].rootAssembly.instances['Cir Column-1'].nodes.getSequenceFromMask(
+            mask=('[#ffffffff:3 #ffff ]', ), ))
+
+        # Step
+        mdb.models['Model-1'].ExplicitDynamicsStep(improvedDtMethod=ON, massScaling=((
+            SEMI_AUTOMATIC, MODEL, AT_BEGINNING, 0.0, 5.5e-07, BELOW_MIN, 0, 0, 0.0, 
+            0.0, 0, None), ), name='Dynamic', previous='Initial', timePeriod=0.03)
+        mdb.models['Model-1'].steps['Dynamic'].setValues(improvedDtMethod=ON, 
+            massScaling=((SEMI_AUTOMATIC, MODEL, AT_BEGINNING, 0.0, 5.5e-07, BELOW_MIN, 
+            0, 0, 0.0, 0.0, 0, None), ), maxIncrement=3e-07)
+
+        # History_Output
+        mdb.models['Model-1'].historyOutputRequests['H-Output-1'].setValues(
+            timeInterval=0.001,variables=('ALLIE', 'ALLKE', 'ALLSE'))
+
+        # Field_Output
+        mdb.models['Model-1'].fieldOutputRequests['F-Output-1'].setValues(timeInterval=
+            0.001, variables=('U', 'RF'))
+
+        # Interaction
+        mdb.models['Model-1'].ContactProperty('Friction')
+        mdb.models['Model-1'].interactionProperties['Friction'].TangentialBehavior(
+            dependencies=0, directionality=ISOTROPIC, elasticSlipStiffness=None, 
+            formulation=PENALTY, fraction=0.005, maximumElasticSlip=FRACTION, 
+            pressureDependency=OFF, shearStressLimit=None, slipRateDependency=OFF, 
+            table=((0.4, ), ), temperatureDependency=OFF)
+        mdb.models['Model-1'].rootAssembly.Surface(name='surf_impactor', side1Faces=
+            mdb.models['Model-1'].rootAssembly.instances['Impactor-1'].faces.getSequenceFromMask(
+            ('[#1 ]', ), ))
+        mdb.models['Model-1'].ContactExp(createStepName='Dynamic', name='Gen_Cont')
+        mdb.models['Model-1'].interactions['Gen_Cont'].includedPairs.setValuesInStep(
+            stepName='Dynamic', useAllstar=ON)
+        mdb.models['Model-1'].interactions['Gen_Cont'].contactPropertyAssignments.appendInStep(
+            assignments=((GLOBAL, SELF, 'Friction'), ), stepName='Dynamic')
+        mdb.models['Model-1'].EncastreBC(createStepName='Dynamic', localCsys=None, 
+            name='Fix_Col_Btm', region=Region(
+            edges=mdb.models['Model-1'].rootAssembly.instances['Cir Column-1'].edges.getSequenceFromMask(
+            mask=('[#1 ]', ), )))
+
+        # BC and loads
+        mdb.models['Model-1'].rootAssembly.Set(edges=
+            mdb.models['Model-1'].rootAssembly.instances['Cir Column-1'].edges.getSequenceFromMask(
+            ('[#1 ]', ), ), name='edge')
+        mdb.models['Model-1'].boundaryConditions['Fix_Col_Btm'].setValues(region=
+            mdb.models['Model-1'].rootAssembly.sets['edge'])
+        mdb.models['Model-1'].DisplacementBC(amplitude=UNSET, createStepName='Dynamic', 
+            distributionType=UNIFORM, fieldName='', fixed=OFF, localCsys=None, name=
+            'BC_Impactor', region=
+            mdb.models['Model-1'].rootAssembly.instances['Impactor-1'].sets['Impactor_RP']
+            , u1=0.0, u2=0.0, u3=UNSET, ur1=0.0, ur2=0.0, ur3=0.0)
+        mdb.models['Model-1'].Velocity(distributionType=MAGNITUDE, field='', name=
+            'Initial_Velocity', omega=0.0, region=
+            mdb.models['Model-1'].rootAssembly.instances['Impactor-1'].sets['Impactor_RP']
+            , velocity3=7300.0)
+
+        # Job
+        mdb.Job(activateLoadBalancing=False, atTime=None, contactPrint=OFF, 
+            description='', echoPrint=OFF, explicitPrecision=SINGLE, historyPrint=OFF, 
+            memory=90, memoryUnits=PERCENTAGE, model='Model-1', modelPrint=OFF, 
+            multiprocessingMode=DEFAULT, name='Cir_CB1', nodalOutputPrecision=SINGLE, 
+            numCpus=6, numDomains=6, parallelizationMethodExplicit=DOMAIN, queue=None, 
+            resultsFormat=ODB, scratch='', type=ANALYSIS, userSubroutine='', waitHours=
+            0, waitMinutes=0)
+        # mdb.jobs['Cir_CB1'].submit(consistencyChecking=OFF)
+        # mdb.jobs['Cir_CB1'].waitForCompletion()
+
+        # # open results file
+        # import sys
+        # odb = session.openOdb(name="Cir_CB1.odb")
+        # # get the step where the results are
+        # step = odb.steps["Dynamic"]
+        # # get the vectors that store the results
+        # displacements = step.frames[1].fieldOutputs["U"]
+        # reaction_force = step.frames[1].fieldOutputs["RF"]
+        # # energy = 
+        # # initialize an empty vector to store u of every node
+        # u_vector = []
+        # rf_vector = []
+        # # loop over all nodes
+        # for k in range(len(displacements.values)):
+        #     # get the u2 of the node and store it in u2_vector
+        #     u_vector.append(displacements.values[k].data[1])
+        #     rf_vector.append((reaction_force.values[k].data[1]))
+        # print("Displacements = " + str(u_vector))
+        # print >> sys.__stdout__, "Displacements = " + str(u_vector)
+        # print >> sys.__stdout__, "---------------"
+        # print("Reaction_Force = " + str(u_vector))
+        # print >> sys.__stdout__, "Reaction_Force = " + str(rf_vector)
+        # print >> sys.__stdout__, "------------------------------------------"
+        
+
